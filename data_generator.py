@@ -2,8 +2,10 @@ import pandas as pd
 import random
 from datetime import datetime
 from faker import Faker
+from sqlalchemy import create_engine, text
 
 fake = Faker()
+engine = create_engine("postgresql+psycopg2://postgres:postgres@localhost:6432/analytics_db")
 
 # generate customers data
 def generate_customers(n):
@@ -47,18 +49,18 @@ def generate_inventory(n):
         })
     return pd.DataFrame(inventory)
 
-# generate sales data
-def generate_sales(n):
-    sales = []
+# generate transaction data
+def generate_transaction(n):
+    transaction = []
     start_date = datetime(2023, 1, 1)
     end_date = datetime(2025, 1, 23)
-    print(f"generating sales...")
+    print(f"generating transaction...")
     for i in range(n):
         random_date = fake.date_between_dates(date_start=start_date, date_end=end_date)
         product_id = random.randint(1, 1000)
-        product_price = product.loc[product["product_id"] == product_id, "price"].values
+        product_price = product.loc[product["product_id"] == product_id, "price"].values.item()
         quantity = random.randint(1,10)
-        sales.append({
+        transaction.append({
             "order_id": i + 1,
             "product_id": product_id,
             "customer_id": random.randint(1, 1000),
@@ -66,12 +68,35 @@ def generate_sales(n):
             "revenue": quantity * product_price,
             "quantity": quantity,
         })
-    return pd.DataFrame(sales)
+    return pd.DataFrame(transaction)
+
+def create_schema(engine):
+    print("creating db schema...")
+    schema = ["staging", "warehouse"]
+    
+    for s in schema:
+        with engine.connect() as connection:
+            query = text(f"create schema if not exists {s};")
+            connection.execute(query)
+            connection.commit()
+
+def data_modelling(engine):
+    print('creating fact n dimension tables...')
+    with open("query/dwh_table_creation.sql", "r") as file:
+        query = file.read()
+        query = text(query)
+    
+    with engine.connect() as connection:
+        connection.execute(query)
+        connection.commit()
 
 
+# Create schema
+create_schema(engine)
 
+# Generate data
 customers = generate_customers(1000)
-customers.to_csv("customers.csv", index=False)
+customers.to_sql('customer', engine, if_exists='replace', index=False, schema='staging')
 
 product = generate_product(1000)
 product.to_csv("product.csv", index=False)
@@ -79,5 +104,9 @@ product.to_csv("product.csv", index=False)
 inventory = generate_inventory(1000)
 inventory.to_csv("inventory.csv", index=False)
 
-sales = generate_sales(1000000)
-sales.to_csv("sales.csv", index=False)
+transaction = generate_transaction(1000000)
+transaction.to_sql('transaction', engine, if_exists='replace', index=False, schema='staging', chunksize=100000)
+
+# Build Datawarehouse
+data_modelling(engine)
+
