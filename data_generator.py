@@ -38,17 +38,6 @@ def generate_product(n):
         })
     return pd.DataFrame(product)
 
-# generate inventory data
-def generate_inventory(n):
-    inventory = []
-    print(f"generating inventory...")
-    for i in range(n):
-        inventory.append({
-            "product_id": i + 1,
-            "stock": random.randint(1, 2000)
-        })
-    return pd.DataFrame(inventory)
-
 # generate transaction data
 def generate_transaction(n):
     transaction = []
@@ -100,9 +89,6 @@ customers.to_sql('customer', engine, if_exists='replace', index=False, schema='s
 
 product = generate_product(1000)
 product.to_csv("product.csv", index=False)
-
-inventory = generate_inventory(1000)
-inventory.to_csv("inventory.csv", index=False)
 
 transaction = generate_transaction(1000000)
 transaction.to_sql('transaction', engine, if_exists='replace', index=False, schema='staging', chunksize=100000)
